@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heritier — Portfolio Dashboard</title>
+<style>
+:root{--bg:#f5f0e7;--card:#fffdf8;--ink:#26251f;--muted:#777268;--line:#d9d0c1;--or:#d96d32;--dark:#282820;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1f1e19;--card:#2a2923;--ink:#f3ecdf;--muted:#a9a394;--line:#45433a;--or:#e88b4d;--dark:#f3ecdf;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1f1e19;--card:#2a2923;--ink:#f3ecdf;--muted:#a9a394;--line:#45433a;--or:#e88b4d;--dark:#f3ecdf;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--ink);font:15px/1.5 "DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:24px 18px 60px}
+h1{font-size:1.7rem;margin:0 0 4px;letter-spacing:-.04em}h1 span{color:var(--or)}
+.sub{color:var(--muted);margin:0 0 20px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.tab,.btn{border:1px solid var(--line);background:transparent;color:var(--ink);padding:8px 15px;border-radius:999px;cursor:pointer;font:inherit;font-size:.85rem}
+.tab.on,.btn.pri{background:var(--or);border-color:var(--or);color:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{font-size:1.05rem;margin:0 0 12px}
+label{display:block;font-size:.72rem;letter-spacing:.08em;color:var(--muted);margin:10px 0 4px;font-weight:700}
+input,textarea,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:150px}
+.item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.item:first-of-type{border-top:0}.item b{display:block}.item small{color:var(--muted)}
+.acts{display:flex;gap:8px}.acts a,.acts button{font-size:.8rem;color:var(--or);background:none;border:0;cursor:pointer;text-decoration:underline;padding:0;font-family:inherit}
+.msg{font-size:.85rem;color:var(--muted);margin-top:8px}.empty{color:var(--muted);padding:6px 0}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Portfolio <span>dashboard</span></h1>
+  <p class="sub">Upload your CV and certificates, and add anything else you want on your site.</p>
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-t="cv">CV</button>
+    <button class="tab" data-t="cert">Certificates</button>
+    <button class="tab" data-t="other">Other items</button>
+  </div>
+  <div id="status" class="msg">Connecting…</div>
+
+  <section id="p-cv">
+    <div class="card"><h2>Current CV</h2><div id="l-cv"></div>
+      <label for="f-cv">UPLOAD A PDF (REPLACES THE CURRENT ONE)</label>
+      <input type="file" id="f-cv" accept="application/pdf">
+    </div>
+  </section>
+
+  <section id="p-cert" class="hide">
+    <div class="card"><h2>Add a certificate</h2>
+      <div class="row"><div><label for="c-title">TITLE</label><input id="c-title" placeholder="Introduction to Modern AI"></div>
+      <div><label for="c-issuer">ISSUER</label><input id="c-issuer" placeholder="Cisco Networking Academy"></div>
+      <div><label for="c-date">DATE</label><input id="c-date" placeholder="July 2026"></div></div>
+      <label for="c-file">FILE (PDF OR IMAGE, OPTIONAL)</label><input type="file" id="c-file" accept="application/pdf,image/*">
+      <p><button class="btn pri" id="c-add">Add certificate</button></p>
+    </div>
+    <div class="card"><h2>Your certificates</h2><div id="l-cert"></div></div>
+  </section>
+
+  <section id="p-other" class="hide">
+    <div class="card"><h2>Add something else</h2>
+      <div class="row"><div><label for="o-title">TITLE</label><input id="o-title" placeholder="Project, award, article…"></div>
+      <div><label for="o-kind">TYPE</label><select id="o-kind"><option>Project</option><option>Award</option><option>Experience</option><option>Article</option><option>Other</option></select></div></div>
+      <label for="o-desc">DESCRIPTION</label><textarea id="o-desc" rows="3"></textarea>
+      <label for="o-link">LINK (OPTIONAL)</label><input id="o-link" placeholder="https://…">
+      <label for="o-file">FILE OR IMAGE (OPTIONAL)</label><input type="file" id="o-file">
+      <p><button class="btn pri" id="o-add">Add item</button></p>
+    </div>
+    <div class="card"><h2>Your items</h2><div id="l-other"></div></div>
+  </section>
+
+  <div class="card"><h2>Export</h2><p class="msg" style="margin-top:0">Download your entries as JSON to use when updating your website.</p><button class="btn" id="export">Download data (.json)</button></div>
+</div>
+
+<script>
+let db=null,assets=null,downloads=null,rows=[];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const safeUrl=u=>/^(https?:\/\/|\/_blob\/)/.test(u||"")?u:"";
+const say=t=>{$("status").textContent=t};
+
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));
+  ["cv","cert","other"].forEach(k=>$("p-"+k).classList.toggle("hide",k!==b.dataset.t));
+});
+
+async function upload(file){
+  if(!assets) throw new Error("Uploads are not available in this view (editor access needed).");
+  if(file.size>20*1024*1024) throw new Error("File is over 20 MB.");
+  return await assets.upload(file);
+}
+function render(){
+  const by=t=>rows.filter(r=>r.type===t);
+  const cv=by("cv")[0];
+  $("l-cv").innerHTML=cv?`<div class="item"><div><b>${esc(cv.name)}</b><small>Uploaded ${esc(cv.added)}</small></div><div class="acts">${safeUrl(cv.url)?`<a href="${esc(cv.url)}" target="_blank" rel="noopener">View</a>`:""}<button data-del="${esc(cv.id)}">Delete</button></div></div>`:'<div class="empty">No CV uploaded yet.</div>';
+  const list=(t)=>by(t).sort((a,b)=>b.ts-a.ts).map(r=>`<div class="item"><div><b>${esc(r.title)}</b><small>${esc([r.kind,r.issuer,r.date].filter(Boolean).join(" · "))}</small>${r.desc?`<small>${esc(r.desc)}</small>`:""}</div><div class="acts">${safeUrl(r.url)?`<a href="${esc(r.url)}" target="_blank" rel="noopener">File</a>`:""}${safeUrl(r.link)?`<a href="${esc(r.link)}" target="_blank" rel="noopener">Link</a>`:""}<button data-del="${esc(r.id)}">Delete</button></div></div>`).join("")||'<div class="empty">Nothing here yet.</div>';
+  $("l-cert").innerHTML=list("cert");$("l-other").innerHTML=list("other");
+  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Delete this entry?"))return;
+    try{await db.collection("entries").doc(b.dataset.del).delete();}catch(e){say("Could not delete: "+(e.message||e.code));}
+  });
+}
+async function addEntry(data,file){
+  say("Saving…");
+  try{
+    if(file){const a=await upload(file);data.url=a.url;data.assetId=a.id;data.name=file.name;}
+    data.ts=Date.now();data.added=new Date().toLocaleDateString();
+    await db.collection("entries").add(data);say("Saved.");return true;
+  }catch(e){say("Could not save: "+(e.message||e.code||"unknown error"));return false;}
+}
+$("f-cv").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(f.type!=="application/pdf"){say("Please choose a PDF.");return;}
+  const old=rows.filter(r=>r.type==="cv");
+  if(await addEntry({type:"cv"},f)){for(const o of old){try{await db.collection("entries").doc(o.id).delete();}catch(_){}}}
+  e.target.value="";
+};
+$("c-add").onclick=async()=>{
+  const title=$("c-title").value.trim();if(!title){say("Add a title first.");return;}
+  if(await addEntry({type:"cert",title,issuer:$("c-issuer").value.trim(),date:$("c-date").value.trim()},$("c-file").files[0])){["c-title","c-issuer","c-date","c-file"].forEach(i=>$(i).value="");}
+};
+$("o-add").onclick=async()=>{
+  const title=$("o-title").value.trim();if(!title){say("Add a title first.");return;}
+  if(await addEntry({type:"other",title,kind:$("o-kind").value,desc:$("o-desc").value.trim(),link:$("o-link").value.trim()},$("o-file").files[0])){["o-title","o-desc","o-link","o-file"].forEach(i=>$(i).value="");}
+};
+$("export").onclick=async()=>{
+  if(!downloads){say("Download is not available here.");return;}
+  try{await downloads.save({filename:"portfolio-data.json",data:JSON.stringify(rows,null,2)});}catch(e){say("Download cancelled or failed.");}
+};
+
+(async()=>{
+  try{
+    if(!window.claude){say("Open this page in Claude to enable saving.");return;}
+    db=await claude.use("db");assets=await claude.use("assets");downloads=await claude.use("downloads");
+    if(!db){say("Sign in to Claude to save your data.");return;}
+    say(assets?"Ready.":"Ready (view only: uploads need editor access).");
+    db.collection("entries").onSnapshot(s=>{rows=s.docs.map(d=>Object.assign({id:d.id},d.data()));render();},e=>say("Data error: "+(e.message||e.code)));
+  }catch(e){say("Could not connect: "+(e.message||e.code));}
+})();
+</script>
+</body>
+</html>
